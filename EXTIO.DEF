@@ -1,0 +1,99 @@
+// Preparazione dell'ambiente di gioco (schermata, grafica, ecc...)
+// e funzioni-macro per la gestione dello schermo attraverso il
+// Memory-Mapped Input/Output
+
+
+// indirizzo base dello schermo in modalità testo
+unsigned char far * VideoBaseAddress = (unsigned char far *) 0xB0008000;
+
+// "costruisce" un colore a partire dal colore del testo e dello sfondo
+#define makecolor(background,foreground)  ((foreground & 0xF) + ((background & 07) << 4))
+
+
+void dv_setattr(int x, int y, int attr)  {
+	*(VideoBaseAddress + ((x-1)*2)+((y-1)*160 + 1)) = attr;	// setto l'attributo
+}
+
+
+char dv_getchar(int x, int y)  {
+	return((char) *(VideoBaseAddress + ((x-1)*2)+((y-1)*160)));
+}
+
+
+void dv_putcharxy(int x, int y, const char c, int attr)  {
+	*(VideoBaseAddress + ((x-1)*2)+((y-1)*160)) = c;
+	*(VideoBaseAddress + ((x-1)*2)+((y-1)*160 + 1)) = attr;	// setto l'attributo
+}
+
+
+void dv_printxy(int x, int y, const char *string, int attr)  {
+	int i, numCicli=strlen(string)*2;
+	for (i=0; i<numCicli; i++)
+		*(VideoBaseAddress + ((x-1)*2)+((y-1)*160) + i) = ((i%2) ? attr : string[i/2]);
+}
+
+
+void dv_printfxy(int x, int y, int attr, const char *fmt, ...)  {
+	int i, numCicli;
+	char buffer[81];	// piccolo ma per questo programmino basta
+	va_list arg;
+
+	va_start(arg, fmt);
+	vsprintf(buffer, fmt, arg);
+	va_end(arg);
+
+	numCicli = strlen(buffer)*2;
+	for (i=0; i<numCicli; i++)
+		*(VideoBaseAddress + ((x-1)*2)+((y-1)*160) + i) = ((i%2) ? attr : buffer[i/2]);
+}
+
+
+void screenmode80x50(void)  {
+
+	_AX = 0x1202;
+	_BL = 0x30;
+	geninterrupt(0x10);
+
+	_AX = 0x03;
+	geninterrupt(0x10);
+
+	_AX = 0x1112;
+	_BL = 0x00;
+	geninterrupt(0x10);
+}
+
+
+void cls(int attr)  {
+	register int i;
+	for (i=0; i < 50*80*2; i++)
+		*(VideoBaseAddress+i) = ((i&1) ? (char)attr : 0x00);
+}
+
+
+void clrwin(int x1, int y1, int x2, int y2, int color)  {
+	register int i, j;
+	for (i=y1; i <= y2; i++)  {
+		for (j=x1; j <= x2; j++)  {
+			*(VideoBaseAddress + ((j-1)*2)+((i-1)*160)) = 0x00;
+			*(VideoBaseAddress + ((j-1)*2)+((i-1)*160 + 1)) = color;
+		}
+	}
+}
+
+
+void cornice  (int x1, int y1, int x2, int y2, int color)  {
+	register int i, j;
+
+	dv_putcharxy(x1, y1, 'É', color);
+	for (i=x1+1; i<x2; i++)   {
+		dv_putcharxy(i, y1, 'Í', color);
+		dv_putcharxy(i, y2, 'Í', color);
+	}
+	dv_putcharxy(x2, y1, '»', color);
+	for(i=y1+1; i<y2; i++)  {
+		dv_putcharxy(x1, i, 'º', color);
+		dv_putcharxy(x2, i, 'º', color);
+	}
+	dv_putcharxy(x1, y2, 'È', color);
+	dv_putcharxy(x2, y2, '¼', color);
+}
